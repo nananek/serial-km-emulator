@@ -32,10 +32,20 @@ SLOT_LEN = 20.0       # USB-C opening along the left wall
 SLOT_Z0 = 1.5         # bottom of the opening above the inner floor
 SLOT_H = 4.5          # opening height
 TAB_D = 7.0           # glue tab depth
-TUCK_W = 43.0         # tuck flap width (clears the corner glue tabs)
-TUCK_D = 6.0          # tuck flap depth
+TUCK_W = 43.0         # tuck flap width at the fold (clears the glue tabs)
+TUCK_TIP_W = 37.0     # tuck flap width at the tip, so it slides in and out
+TUCK_D = 4.0          # tuck flap depth
+TUCK_R = 2.0          # corner radius at the tuck flap tip
+THUMB_W = 8.0         # front-wall thumb notch half width
+THUMB_D = 5.0         # front-wall thumb notch depth (deeper than the tuck)
 LID_OVERHANG = 0.5    # lid overlap over the left / right walls
 LED_HOLE_D = 3.0      # LED window diameter
+
+# The notch has to reach below the tucked flap, otherwise the lid cannot be
+# lifted again once it is closed.
+if THUMB_D <= TUCK_D:
+    raise SystemExit("thumb notch (%.1f mm) must be deeper than the tuck "
+                     "flap (%.1f mm)" % (THUMB_D, TUCK_D))
 
 
 def read_footprint_at(path, ref):
@@ -125,6 +135,20 @@ def box_layout(board_w, board_h):
     return dict(w=w, d=d, h=HEIGHT)
 
 
+def arc_pts(cx, cy, r, a0, a1, steps=16):
+    """Points on a circular arc, angles in degrees (CCW, y up)."""
+    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * i / steps)),
+             cy + r * math.sin(math.radians(a0 + (a1 - a0) * i / steps)))
+            for i in range(steps + 1)]
+
+
+def notch_pts(cx, cy, half_w, depth, steps=24):
+    """Half-ellipse thumb notch opening upward from the edge at cy."""
+    return [(cx + half_w * math.cos(math.radians(180 - 180.0 * i / steps)),
+             cy + depth * math.sin(math.radians(180 - 180.0 * i / steps)))
+            for i in range(steps + 1)]
+
+
 def draw_net(c, box, board_poly, board_min, j1, j2, led):
     W, D, H = box["w"], box["d"], box["h"]
     tx = (W - TUCK_W) / 2.0
@@ -133,7 +157,11 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
 
     # --- all panel outlines (cut edges) ---------------------------------
     c.rect(0, 0, W, D)                    # floor
-    c.rect(0, -H, W, H)                   # front wall
+    # Front wall, with a thumb notch in its top edge.  The notch is deeper
+    # than the tuck flap so a finger can hook under the flap and lift the lid.
+    c.polyline([(0, -H), (W / 2.0 - THUMB_W, -H)]
+               + notch_pts(W / 2.0, -H, THUMB_W, THUMB_D)
+               + [(W, -H), (W, 0), (0, 0), (0, -H)])
     c.rect(0, D, W, H)                    # back wall
     c.rect(-H, 0, H, D)                   # left wall (USB-C side)
     c.rect(W, 0, H, D)                    # right wall
@@ -143,11 +171,16 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
     c.rect(W, -TAB_D, H, TAB_D)           # right front glue tab
     c.rect(W, D, H, TAB_D)                # right back glue tab
 
-    # --- tuck flap (2 mm corner cuts) -----------------------------------
+    # --- tuck flap (tapered, rounded tip) -------------------------------
     y0 = D + H + D
-    c.polyline([(tx, y0), (tx, y0 + TUCK_D - 2.0),
-                (tx + 2.0, y0 + TUCK_D), (tx + TUCK_W - 2.0, y0 + TUCK_D),
-                (tx + TUCK_W, y0 + TUCK_D - 2.0), (tx + TUCK_W, y0)])
+    dx = (TUCK_W - TUCK_TIP_W) / 2.0
+    c.polyline(
+        [(tx, y0), (tx + dx, y0 + TUCK_D - TUCK_R)]
+        + arc_pts(tx + dx + TUCK_R, y0 + TUCK_D - TUCK_R, TUCK_R, 180, 90)
+        + [(tx + TUCK_W - dx - TUCK_R, y0 + TUCK_D)]
+        + arc_pts(tx + TUCK_W - dx - TUCK_R, y0 + TUCK_D - TUCK_R,
+                  TUCK_R, 90, 0)
+        + [(tx + TUCK_W - dx, y0 + TUCK_D - TUCK_R), (tx + TUCK_W, y0)])
 
     # --- fold lines: knock out the cut line, then draw the dashes --------
     folds = [
@@ -189,10 +222,10 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
     c.text("LED %g" % LED_HOLE_D, led_x + 2.6, led_y - 1.0, 2.3)
 
     # --- panel labels ----------------------------------------------------
-    c.ctext("FRONT", W / 2.0, -H / 2.0 - 1.2, 4.0)
+    c.ctext("FRONT", W / 2.0 - THUMB_W - 10.0, -H / 2.0 - 1.2, 3.0)
     c.ctext("BACK", W / 2.0, D + H / 2.0 - 1.2, 4.0)
     c.ctext("LID", W / 2.0, D + H + D / 2.0 - 1.5, 5.0)
-    c.ctext("TUCK", W / 2.0, y0 + TUCK_D / 2.0 - 0.8, 3.0)
+    c.ctext("TUCK", W / 2.0, y0 + TUCK_D / 2.0 - 0.6, 2.3)
     c.ctext("LEFT", -H / 2.0, D - 3.0, 2.4)
     c.ctext("RIGHT", W + H / 2.0, D - 3.0, 2.4)
     c.ctext("BOARD", W / 2.0, D / 2.0 + 1.0, 4.0)
@@ -201,6 +234,12 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
     for x in (-H / 2.0, W + H / 2.0):
         c.ctext("G", x, -TAB_D / 2.0 - 1.0, 3.0)
         c.ctext("G", x, D + TAB_D / 2.0 - 1.0, 3.0)
+
+    # Thumb notch: arrow from outside the front wall, pointing at the notch.
+    c.line(W / 2.0, -H - 3.0, W / 2.0, -H - 1.0, 0.2)
+    c.polyline([(W / 2.0 - 1.0, -H - 1.9), (W / 2.0, -H - 0.7),
+                (W / 2.0 + 1.0, -H - 1.9)], 0.2)
+    c.text("THUMB NOTCH", W / 2.0 + 8.0, -H - 2.8, 2.2)
 
     # Dimensions outside the net.
     dim_h(c, 0, W, -H - 7.0, "%.1f inner" % W)
@@ -219,22 +258,24 @@ def draw_notes(sheet, box, led, board_min):
         "2. The printed side becomes the inside of the box.",
         "   Solid lines = cut. Black dashed lines = score and",
         "   valley fold (fold toward the printed side).",
-        "3. Cut the outside, the 20 x 4.5 mm USB-C slot and",
-        "   the 3 mm LED hole.",
+        "3. Cut the outside, the 20 x 4.5 mm USB-C slot,",
+        "   the 3 mm LED hole and the 16 mm thumb notch.",
         "4. Fold up the four walls. Put glue on the inside of",
         "   the front and back walls, then press the tabs (G).",
         "5. Fold the lid over and tuck the 43 mm flap",
-        "   inside the front wall.",
-        "6. Put the board on the floor, against the LEFT",
+        "   (4 mm deep) inside the front wall.",
+        "6. To open, put a finger into the thumb notch and hook",
+        "   it under the flap. The tapered tip slides out.",
+        "7. Put the board on the floor, against the LEFT",
         "   wall. J1/J2 go through the slot, LED under",
         "   the 3 mm hole.",
-        "7. No screws. Use tape or a foam pad if the board",
+        "8. No screws. Use tape or a foam pad if the board",
         "   rattles. A spacer up to 0.5 mm is OK.",
-        "8. Chamfer the outside of the slot lightly if a",
+        "9. Chamfer the outside of the slot lightly if a",
         "   plug overmould catches on the paper.",
     ]
     for i, line in enumerate(lines):
-        sheet.text(line, x, y - 7.0 - i * 4.0, 2.9)
+        sheet.text(line, x, y - 7.0 - i * 3.8, 2.9)
 
     y2 = 93.0
     sheet.text("DIMENSIONS (mm)", x, y2, 3.4)
@@ -248,11 +289,14 @@ def draw_notes(sheet, box, led, board_min):
             MARGIN + (led[0] - board_min[0]),
             MARGIN + (led[1] - board_min[1]) + PAPER_T / 2.0),
         "glue tab     %.0f mm, four corners" % TAB_D,
-        "tuck flap    %.0f x %.0f mm" % (TUCK_W, TUCK_D),
+        "tuck flap    %.0f x %.1f mm, tip %.0f" % (
+            TUCK_W, TUCK_D, TUCK_TIP_W),
+        "thumb notch  %.0f x %.0f mm, front wall" % (
+            2 * THUMB_W, THUMB_D),
     ]):
         sheet.text(line, x, y2 - 5.5 - i * 4.0, 2.9)
 
-    y3 = 57.0
+    y3 = 53.0
     sheet.text("LINE TYPES", x, y3, 3.4)
     sheet.line(x, y3 - 5.0, x + 14, y3 - 5.0, 0.3)
     sheet.text("cut", x + 17, y3 - 6.0, 2.9)

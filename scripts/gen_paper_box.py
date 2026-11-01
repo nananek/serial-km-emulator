@@ -32,20 +32,37 @@ SLOT_LEN = 20.0       # USB-C opening along the left wall
 SLOT_Z0 = 1.5         # bottom of the opening above the inner floor
 SLOT_H = 4.5          # opening height
 TAB_D = 7.0           # glue tab depth
-TUCK_W = 43.0         # tuck flap width at the fold (clears the glue tabs)
-TUCK_TIP_W = 37.0     # tuck flap width at the tip, so it slides in and out
-TUCK_D = 4.0          # tuck flap depth
-TUCK_R = 2.0          # corner radius at the tuck flap tip
-THUMB_W = 8.0         # front-wall thumb notch half width
-THUMB_D = 5.0         # front-wall thumb notch depth (deeper than the tuck)
+TUCK_W = 38.0         # tuck tongue width (clears the glue tabs inside)
+TUCK_D = 7.0          # tuck tongue depth below the lid fold
+TUCK_R = 2.0          # corner radius at the tuck tongue tip
+SLIT_LEN = 37.0       # tuck slot length (1 mm narrower than the tongue)
+SLIT_H = 1.0          # tuck slot height in the front wall
+SLIT_D = 3.5          # slot centre below the front-wall rim
+LIP_W = 43.0          # inner lip width, behind the slot
+LIP_D = 7.5           # inner lip depth from the front-wall rim
 LID_OVERHANG = 0.5    # lid overlap over the left / right walls
 LED_HOLE_D = 3.0      # LED window diameter
 
-# The notch has to reach below the tucked flap, otherwise the lid cannot be
-# lifted again once it is closed.
-if THUMB_D <= TUCK_D:
-    raise SystemExit("thumb notch (%.1f mm) must be deeper than the tuck "
-                     "flap (%.1f mm)" % (THUMB_D, TUCK_D))
+# The tongue has to reach through the slot, and the lip has to cover the part
+# that ends up inside the front wall, otherwise the lid is not held closed.
+if SLIT_D + SLIT_H / 2.0 >= TUCK_D:
+    raise SystemExit("tuck tongue (%.1f mm) must reach past the slot "
+                     "(%.1f mm)" % (TUCK_D, SLIT_D + SLIT_H / 2.0))
+if LIP_D < TUCK_D:
+    raise SystemExit("inner lip (%.1f mm) must cover the tuck tongue "
+                     "(%.1f mm)" % (LIP_D, TUCK_D))
+if SLIT_LEN >= TUCK_W:
+    raise SystemExit("tuck slot (%.1f mm) must be narrower than the tongue "
+                     "(%.1f mm) so it grips" % (SLIT_LEN, TUCK_W))
+if TUCK_W - SLIT_LEN > 3.0:
+    raise SystemExit("tuck slot (%.1f mm) is too much narrower than the "
+                     "tongue (%.1f mm)" % (SLIT_LEN, TUCK_W))
+if LIP_W <= SLIT_LEN:
+    raise SystemExit("inner lip (%.1f mm) must be wider than the slot "
+                     "(%.1f mm)" % (LIP_W, SLIT_LEN))
+if LIP_D >= HEIGHT:
+    raise SystemExit("inner lip (%.1f mm) must stay inside the front wall "
+                     "(%.1f mm)" % (LIP_D, HEIGHT))
 
 
 def read_footprint_at(path, ref):
@@ -142,26 +159,31 @@ def arc_pts(cx, cy, r, a0, a1, steps=16):
             for i in range(steps + 1)]
 
 
-def notch_pts(cx, cy, half_w, depth, steps=24):
-    """Half-ellipse thumb notch opening upward from the edge at cy."""
-    return [(cx + half_w * math.cos(math.radians(180 - 180.0 * i / steps)),
-             cy + depth * math.sin(math.radians(180 - 180.0 * i / steps)))
-            for i in range(steps + 1)]
-
-
 def draw_net(c, box, board_poly, board_min, j1, j2, led):
     W, D, H = box["w"], box["d"], box["h"]
     tx = (W - TUCK_W) / 2.0
     lid_x0 = -LID_OVERHANG
     lid_w = W + 2.0 * LID_OVERHANG
+    lip_x0 = (W - LIP_W) / 2.0
+    clear = W - 2.0 * TAB_D
+
+    for name, width in (("tuck tongue", TUCK_W), ("inner lip", LIP_W)):
+        if width > clear:
+            raise SystemExit("%s (%.1f mm) must fit between the front "
+                             "glue tabs (%.1f mm)" % (name, width, clear))
+    if SLIT_LEN >= W:
+        raise SystemExit("tuck slot (%.1f mm) must fit in the front wall "
+                         "(%.1f mm)" % (SLIT_LEN, W))
 
     # --- all panel outlines (cut edges) ---------------------------------
     c.rect(0, 0, W, D)                    # floor
-    # Front wall, with a thumb notch in its top edge.  The notch is deeper
-    # than the tuck flap so a finger can hook under the flap and lift the lid.
-    c.polyline([(0, -H), (W / 2.0 - THUMB_W, -H)]
-               + notch_pts(W / 2.0, -H, THUMB_W, THUMB_D)
-               + [(W, -H), (W, 0), (0, 0), (0, -H)])
+    # Front wall with the tuck slot.  The inner lip is attached to the same
+    # rim edge and folds down inside the front wall, behind the slot.
+    c.polyline([(0, -H), (0, 0), (W, 0), (W, -H)])
+    c.line(0, -H, lip_x0, -H)
+    c.line(lip_x0 + LIP_W, -H, W, -H)
+    c.polyline([(lip_x0, -H), (lip_x0, -H - LIP_D),
+                (lip_x0 + LIP_W, -H - LIP_D), (lip_x0 + LIP_W, -H)])
     c.rect(0, D, W, H)                    # back wall
     c.rect(-H, 0, H, D)                   # left wall (USB-C side)
     c.rect(W, 0, H, D)                    # right wall
@@ -171,16 +193,15 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
     c.rect(W, -TAB_D, H, TAB_D)           # right front glue tab
     c.rect(W, D, H, TAB_D)                # right back glue tab
 
-    # --- tuck flap (tapered, rounded tip) -------------------------------
+    # --- tuck tongue (constant width, rounded tip) ----------------------
     y0 = D + H + D
-    dx = (TUCK_W - TUCK_TIP_W) / 2.0
     c.polyline(
-        [(tx, y0), (tx + dx, y0 + TUCK_D - TUCK_R)]
-        + arc_pts(tx + dx + TUCK_R, y0 + TUCK_D - TUCK_R, TUCK_R, 180, 90)
-        + [(tx + TUCK_W - dx - TUCK_R, y0 + TUCK_D)]
-        + arc_pts(tx + TUCK_W - dx - TUCK_R, y0 + TUCK_D - TUCK_R,
+        [(tx, y0), (tx, y0 + TUCK_D - TUCK_R)]
+        + arc_pts(tx + TUCK_R, y0 + TUCK_D - TUCK_R, TUCK_R, 180, 90)
+        + [(tx + TUCK_W - TUCK_R, y0 + TUCK_D)]
+        + arc_pts(tx + TUCK_W - TUCK_R, y0 + TUCK_D - TUCK_R,
                   TUCK_R, 90, 0)
-        + [(tx + TUCK_W - dx, y0 + TUCK_D - TUCK_R), (tx + TUCK_W, y0)])
+        + [(tx + TUCK_W, y0 + TUCK_D - TUCK_R), (tx + TUCK_W, y0)])
 
     # --- fold lines: knock out the cut line, then draw the dashes --------
     folds = [
@@ -190,11 +211,17 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
         ((W, 0), (W, D)),
         ((0, D + H), (W, D + H)),
         ((tx, y0), (tx + TUCK_W, y0)),
+        ((lip_x0, -H), (lip_x0 + LIP_W, -H)),
     ]
     for (x1, y1), (x2, y2) in folds:
         c.line(x1, y1, x2, y2, 1.0, gray=1.0)
     for (x1, y1), (x2, y2) in folds:
         c.line(x1, y1, x2, y2, 0.25, dash=(2.2, 1.4))
+
+    # --- tuck slot in the front wall ------------------------------------
+    slit_y = -H + SLIT_D
+    c.rect(W / 2.0 - SLIT_LEN / 2.0, slit_y - SLIT_H / 2.0,
+           SLIT_LEN, SLIT_H, 0.3)
 
     # --- USB-C opening in the left wall ---------------------------------
     # Centre the opening between the two connector centres, not just on the
@@ -222,7 +249,8 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
     c.text("LED %g" % LED_HOLE_D, led_x + 2.6, led_y - 1.0, 2.3)
 
     # --- panel labels ----------------------------------------------------
-    c.ctext("FRONT", W / 2.0 - THUMB_W - 10.0, -H / 2.0 - 1.2, 3.0)
+    c.ctext("FRONT", W / 2.0, -H + 5.8, 2.2)
+    c.ctext("LIP", W / 2.0, -H - LIP_D / 2.0 - 0.9, 2.4)
     c.ctext("BACK", W / 2.0, D + H / 2.0 - 1.2, 4.0)
     c.ctext("LID", W / 2.0, D + H + D / 2.0 - 1.5, 5.0)
     c.ctext("TUCK", W / 2.0, y0 + TUCK_D / 2.0 - 0.6, 2.3)
@@ -235,14 +263,8 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
         c.ctext("G", x, -TAB_D / 2.0 - 1.0, 3.0)
         c.ctext("G", x, D + TAB_D / 2.0 - 1.0, 3.0)
 
-    # Thumb notch: arrow from outside the front wall, pointing at the notch.
-    c.line(W / 2.0, -H - 3.0, W / 2.0, -H - 1.0, 0.2)
-    c.polyline([(W / 2.0 - 1.0, -H - 1.9), (W / 2.0, -H - 0.7),
-                (W / 2.0 + 1.0, -H - 1.9)], 0.2)
-    c.text("THUMB NOTCH", W / 2.0 + 8.0, -H - 2.8, 2.2)
-
     # Dimensions outside the net.
-    dim_h(c, 0, W, -H - 7.0, "%.1f inner" % W)
+    dim_h(c, 0, W, -H - LIP_D - 5.0, "%.1f inner" % W)
     dim_v(c, W + H + 7.0, 0, D, "%.1f inner" % D)
     dim_v(c, -H - 7.0, 0, H, "%.1f" % H)
 
@@ -253,26 +275,21 @@ def draw_notes(sheet, box, led, board_min):
 
     sheet.text("ASSEMBLY", x, y, 4.2)
     lines = [
-        "1. Print on A4 at 100% / 'Actual size'. Check the",
-        "   100 mm bar at the bottom of this page.",
-        "2. The printed side becomes the inside of the box.",
-        "   Solid lines = cut. Black dashed lines = score and",
-        "   valley fold (fold toward the printed side).",
-        "3. Cut the outside, the 20 x 4.5 mm USB-C slot,",
-        "   the 3 mm LED hole and the 16 mm thumb notch.",
-        "4. Fold up the four walls. Put glue on the inside of",
-        "   the front and back walls, then press the tabs (G).",
-        "5. Fold the lid over and tuck the 43 mm flap",
-        "   (4 mm deep) inside the front wall.",
-        "6. To open, put a finger into the thumb notch and hook",
-        "   it under the flap. The tapered tip slides out.",
-        "7. Put the board on the floor, against the LEFT",
-        "   wall. J1/J2 go through the slot, LED under",
-        "   the 3 mm hole.",
-        "8. No screws. Use tape or a foam pad if the board",
-        "   rattles. A spacer up to 0.5 mm is OK.",
-        "9. Chamfer the outside of the slot lightly if a",
-        "   plug overmould catches on the paper.",
+        "1. Print on A4 at 100% / 'Actual size' (check the 100 mm bar).",
+        "2. Printed side = inside. Solid = cut, black dashed = valley fold.",
+        "3. Cut the USB-C slot, the 3 mm LED hole and the %.0f x %.0f mm" % (
+            SLIT_LEN, SLIT_H),
+        "   tuck slot in the front wall.",
+        "4. Fold up the walls and fold the inner lip (LIP) down inside",
+        "   the front wall. Glue the tabs (G) to the front and back walls.",
+        "5. Fold the lid over and push the %.0f mm tongue (%.0f mm deep)" % (
+            TUCK_W, TUCK_D),
+        "   through the slot. The lip behind the slot catches it.",
+        "6. To open, lift the front edge of the lid; the tongue slides out.",
+        "7. Put the board on the floor against the LEFT wall. J1/J2 go",
+        "   through the slot, LED under the 3 mm hole.",
+        "8. No screws. Use tape or a foam pad if the board rattles.",
+        "9. Chamfer the USB-C slot outside if a plug overmould catches.",
     ]
     for i, line in enumerate(lines):
         sheet.text(line, x, y - 7.0 - i * 3.8, 2.9)
@@ -289,14 +306,14 @@ def draw_notes(sheet, box, led, board_min):
             MARGIN + (led[0] - board_min[0]),
             MARGIN + (led[1] - board_min[1]) + PAPER_T / 2.0),
         "glue tab     %.0f mm, four corners" % TAB_D,
-        "tuck flap    %.0f x %.1f mm, tip %.0f" % (
-            TUCK_W, TUCK_D, TUCK_TIP_W),
-        "thumb notch  %.0f x %.0f mm, front wall" % (
-            2 * THUMB_W, THUMB_D),
+        "tuck tongue  %.0f x %.1f mm, rounded tip" % (TUCK_W, TUCK_D),
+        "tuck slot    %.0f x %.1f, %.1f below rim" % (
+            SLIT_LEN, SLIT_H, SLIT_D),
+        "inner lip    %.0f x %.1f, behind the slot" % (LIP_W, LIP_D),
     ]):
-        sheet.text(line, x, y2 - 5.5 - i * 4.0, 2.9)
+        sheet.text(line, x, y2 - 5.5 - i * 3.8, 2.9)
 
-    y3 = 53.0
+    y3 = 50.0
     sheet.text("LINE TYPES", x, y3, 3.4)
     sheet.line(x, y3 - 5.0, x + 14, y3 - 5.0, 0.3)
     sheet.text("cut", x + 17, y3 - 6.0, 2.9)

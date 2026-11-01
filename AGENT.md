@@ -26,6 +26,7 @@ rootless Docker などで `/work` がコンテナ内で root 所有になる場�
 | ガーバー、ドリル、BOM、CPL | `./scripts/kicad.sh ./scripts/export_fab.sh` |
 | `docs/pcb_top.png` など | `./scripts/kicad.sh ./scripts/gen_docs_images.sh` |
 | 実寸確認シート | `python3 scripts/gen_print_sheet.py` |
+| 紙ケース展開図 | `python3 scripts/gen_paper_box.py`（KiCad 不要） |
 | リポジトリ QR（URL 変更時のみ） | `python3 scripts/make_repo_qr.py`（`qrcode` が必要） |
 
 `scripts/gen_pcb.py` で基板を作り直すと UUID が総入れ替えになり、差分が大きくなります。

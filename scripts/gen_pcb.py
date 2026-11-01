@@ -74,6 +74,9 @@ SIG_W = 0.2
 PWR_W = 0.3
 VIA_D = 0.5
 VIA_DRILL = 0.3
+# Keep every via at these standard sizes.  JLCPCB treats a 0.15 mm drill as
+# an advanced process and adds several thousand yen in options (minimum via
+# size, plugged via covering, 4-wire Kelvin test) even for a 5-piece order.
 
 
 def P(x, y):
@@ -388,15 +391,15 @@ class Builder:
         T("USB_SER_DP", [self.pad("D3", "6"), (15.0, 12.55), (15.0, 12.095),
                          self.pad("U2", "1")], width=SIG_W)
         T("USB_SER_DM", [self.pad("J1", "B7"), (8.4, 9.95)], width=SIG_W)
-        V("USB_SER_DM", 8.4, 9.95, size=0.35, drill=0.15)
+        V("USB_SER_DM", 8.4, 9.95)
         T("USB_SER_DM", [self.pad("J1", "A7"), (8.4, 10.95)], width=SIG_W)
-        V("USB_SER_DM", 8.4, 10.95, size=0.35, drill=0.15)
+        V("USB_SER_DM", 8.4, 10.95)
         T("USB_SER_DM", [(8.4, 9.95), (8.4, 10.95)],
           layer=pcbnew.B_Cu, width=SIG_W)
         T("USB_SER_DM", [(8.4, 10.95), (9.3, 10.95), (9.3, 14.45),
-                         (10.5, 14.45)], layer=pcbnew.B_Cu, width=SIG_W)
-        V("USB_SER_DM", 10.5, 14.45, size=0.35, drill=0.15)
-        T("USB_SER_DM", [(10.5, 14.45), self.pad("D3", "3")], width=SIG_W)
+                         (10.6, 14.45)], layer=pcbnew.B_Cu, width=SIG_W)
+        V("USB_SER_DM", 10.6, 14.45)
+        T("USB_SER_DM", [(10.6, 14.45), self.pad("D3", "3")], width=SIG_W)
         T("USB_SER_DM", [self.pad("D3", "3"), self.pad("D3", "4")], width=SIG_W)
         T("USB_SER_DM", [self.pad("D3", "4"), (15.6, 14.45), (15.6, 13.365),
                          self.pad("U2", "2")], width=SIG_W)
@@ -414,14 +417,14 @@ class Builder:
           width=SIG_W)
 
         T("USB_HID_DM", [self.pad("J2", "B7"), (7.8, 19.95)], width=SIG_W)
-        V("USB_HID_DM", 7.8, 19.95, size=0.35, drill=0.15)
+        V("USB_HID_DM", 7.8, 19.95)
         T("USB_HID_DM", [self.pad("J2", "A7"), (7.8, 20.95)], width=SIG_W)
-        V("USB_HID_DM", 7.8, 20.95, size=0.35, drill=0.15)
+        V("USB_HID_DM", 7.8, 20.95)
         T("USB_HID_DM", [(7.8, 19.95), (7.8, 20.95)],
           layer=pcbnew.B_Cu, width=SIG_W)
         T("USB_HID_DM", [(7.8, 20.95), (18.8, 20.95), (18.8, 22.95),
                          (19.8, 22.95)], layer=pcbnew.B_Cu, width=SIG_W)
-        V("USB_HID_DM", 19.8, 22.95, size=0.35, drill=0.15)
+        V("USB_HID_DM", 19.8, 22.95)
         T("USB_HID_DM", [(19.8, 22.95), self.pad("D4", "6")], width=SIG_W)
         T("USB_HID_DM", [self.pad("D4", "1"), self.pad("D4", "6")],
           width=SIG_W)
@@ -436,18 +439,18 @@ class Builder:
         # runs use B.Cu to the right of U1, then short F.Cu stubs to the pins.
         # DM turns up farther right so it does not cross the DP run.
         T("USB_HID_DM", [self.pad("D4", "1"), (24.5, 22.95)], width=SIG_W)
-        V("USB_HID_DM", 24.5, 22.95, size=0.35, drill=0.15)
+        V("USB_HID_DM", 24.5, 22.95)
         T("USB_HID_DM", [(24.5, 22.95), (41.8, 22.95), (41.8, 14.2)],
           layer=pcbnew.B_Cu, width=SIG_W)
-        V("USB_HID_DM", 41.8, 14.2, size=0.35, drill=0.15)
+        V("USB_HID_DM", 41.8, 14.2)
         T("USB_HID_DM", [(41.8, 14.2), (41.8, 13.365),
                          self.pad("U1", "13")], width=SIG_W)
 
         T("USB_HID_DP", [self.pad("D4", "3"), (24.5, 21.05)], width=SIG_W)
-        V("USB_HID_DP", 24.5, 21.05, size=0.35, drill=0.15)
+        V("USB_HID_DP", 24.5, 21.05)
         T("USB_HID_DP", [(24.5, 21.05), (41.2, 21.05), (41.2, 15.2)],
           layer=pcbnew.B_Cu, width=SIG_W)
-        V("USB_HID_DP", 41.2, 15.2, size=0.35, drill=0.15)
+        V("USB_HID_DP", 41.2, 15.2)
         T("USB_HID_DP", [(41.2, 15.2), (41.2, 14.635),
                          self.pad("U1", "12")], width=SIG_W)
 

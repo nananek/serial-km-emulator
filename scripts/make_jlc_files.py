@@ -16,11 +16,11 @@ FAB = os.path.join(ROOT, "fab")
 # These offsets align KiCad footprints with the JLC library. The SOT-23-6
 # offset includes a further 90-degree counterclockwise placement adjustment.
 #
-# The USB-C receptacle needs no rotation offset.  Its board footprint was
-# turned 180 degrees so the mouth is at the board edge and the SMT pads sit at
-# the rear, matching the JLC part.  The board origin moved with the pads, so
-# the CPL position is shifted back by 1.571 mm to keep the JLC origin at the
-# same place (both connectors end up at X = 3.7 mm).
+# The USB-C receptacle needs no rotation offset.  The board footprints are
+# rotated so the mouths face the long edges and the SMT pads sit at the rear,
+# matching the JLC part.  The board origin moved with the pads, so the CPL
+# position is shifted along the connector axis to keep the JLC origin at the
+# same place.
 USB_C_FOOTPRINT = "USB_C_Receptacle_HRO_TYPE-C-31-M-12"
 USB_C_POSITION_OFFSET = 1.571
 

@@ -31,8 +31,8 @@ A/B 両面の D+/D- が同じネットに落ちていることを基板側でも
 | 9 | UP | 未接続（5V 動作なのでプルダウン不要） |
 | 10 | DEF | 未接続（内蔵プルアップ） |
 | 11 | SET | TP1 テストパッド（通常は内蔵プルアップ） |
-| 12 | UD+ | USB_HID_DP → D4 pin1/6 |
-| 13 | UD- | USB_HID_DM → D4 pin3/4 |
+| 12 | UD+ | USB_HID_DP → D4 pin3/4 |
+| 13 | UD- | USB_HID_DM → D4 pin1/6 |
 | 14 | GND | GND |
 | 15 | VCC | +5V（C1 100nF、C5 10uF） |
 | 16 | V33 | C4 100nF → GND |

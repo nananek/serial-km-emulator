@@ -28,17 +28,20 @@ DEFAULT_OUT = os.path.join(ROOT, "docs", "paper_case_a4.pdf")
 MARGIN = 0.5          # board to inner wall, left / right / front / back
 PAPER_T = 0.3         # cardstock thickness used for the notes
 HEIGHT = 8.0          # inner height
-SLOT_LEN = 20.0       # USB-C opening along the left wall
+SLOT_LEN = 14.0       # USB-C opening along each long wall
 SLOT_Z0 = 1.5         # bottom of the opening above the inner floor
 SLOT_H = 4.5          # opening height
 TAB_D = 7.0           # glue tab depth
-TUCK_W = 38.0         # tuck tongue width (clears the glue tabs inside)
+TUCK_W = 24.0         # tuck tongue width (clears the glue tabs inside)
+TUCK_X = 34.0         # tuck tongue left edge
 TUCK_D = 7.0          # tuck tongue depth below the lid fold
 TUCK_R = 2.0          # corner radius at the tuck tongue tip
-SLIT_LEN = 37.0       # tuck slot length (1 mm narrower than the tongue)
+SLIT_LEN = 22.0       # tuck slot length (narrower than the tongue)
+SLIT_X = 34.5         # tuck slot left edge
 SLIT_H = 1.0          # tuck slot height in the front wall
 SLIT_D = 3.5          # slot centre below the front-wall rim
-LIP_W = 43.0          # inner lip width, behind the slot
+LIP_W = 24.0          # inner lip width, behind the slot
+LIP_X = 34.0          # inner lip left edge
 LIP_D = 7.5           # inner lip depth from the front-wall rim
 LID_OVERHANG = 0.5    # lid overlap over the left / right walls
 LED_HOLE_D = 3.0      # LED window diameter
@@ -161,19 +164,35 @@ def arc_pts(cx, cy, r, a0, a1, steps=16):
 
 def draw_net(c, box, board_poly, board_min, j1, j2, led):
     W, D, H = box["w"], box["d"], box["h"]
-    tx = (W - TUCK_W) / 2.0
+    tx = TUCK_X
     lid_x0 = -LID_OVERHANG
     lid_w = W + 2.0 * LID_OVERHANG
-    lip_x0 = (W - LIP_W) / 2.0
+    lip_x0 = LIP_X
     clear = W - 2.0 * TAB_D
 
-    for name, width in (("tuck tongue", TUCK_W), ("inner lip", LIP_W)):
+    for name, x0, width in (("tuck tongue", tx, TUCK_W),
+                            ("inner lip", lip_x0, LIP_W)):
+        if x0 < 0 or x0 + width > W:
+            raise SystemExit("%s (%.1f mm) must stay inside the floor "
+                             "(%.1f mm)" % (name, width, W))
         if width > clear:
             raise SystemExit("%s (%.1f mm) must fit between the front "
                              "glue tabs (%.1f mm)" % (name, width, clear))
     if SLIT_LEN >= W:
         raise SystemExit("tuck slot (%.1f mm) must fit in the front wall "
                          "(%.1f mm)" % (SLIT_LEN, W))
+    if SLIT_X < 0 or SLIT_X + SLIT_LEN > W:
+        raise SystemExit("tuck slot (%.1f mm) must stay inside the front "
+                         "wall (%.1f mm)" % (SLIT_LEN, W))
+    if lip_x0 < 0 or lip_x0 + LIP_W > W:
+        raise SystemExit("inner lip (%.1f mm) must stay inside the front "
+                         "wall (%.1f mm)" % (LIP_W, W))
+
+    # The front-wall USB-C opening must not run into the tuck slot or lip.
+    j2_right = MARGIN + (j2[0] - board_min[0]) + SLOT_LEN / 2.0
+    if lip_x0 < j2_right + 0.5 or SLIT_X < j2_right + 0.5:
+        raise SystemExit("the tuck slot/lip must clear the front USB-C "
+                         "opening (right edge %.1f mm)" % j2_right)
 
     # --- all panel outlines (cut edges) ---------------------------------
     c.rect(0, 0, W, D)                    # floor
@@ -220,15 +239,15 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
 
     # --- tuck slot in the front wall ------------------------------------
     slit_y = -H + SLIT_D
-    c.rect(W / 2.0 - SLIT_LEN / 2.0, slit_y - SLIT_H / 2.0,
-           SLIT_LEN, SLIT_H, 0.3)
+    c.rect(SLIT_X, slit_y - SLIT_H / 2.0, SLIT_LEN, SLIT_H, 0.3)
 
-    # --- USB-C opening in the left wall ---------------------------------
-    # Centre the opening between the two connector centres, not just on the
-    # wall, so a future board revision with a different pitch still lines up.
-    slot_cy = D - MARGIN - ((j1[1] + j2[1]) / 2.0 - board_min[1])
-    slot_y0 = slot_cy - SLOT_LEN / 2.0
-    c.rect(-SLOT_Z0 - SLOT_H, slot_y0, SLOT_H, SLOT_LEN, 0.3)
+    # --- USB-C openings in the front and back walls ---------------------
+    # J1 is on the board's top edge (back wall); J2 is on the bottom edge
+    # (front wall).  Each mouth is centred on its connector.
+    slot_j1 = MARGIN + (j1[0] - board_min[0]) - SLOT_LEN / 2.0
+    slot_j2 = MARGIN + (j2[0] - board_min[0]) - SLOT_LEN / 2.0
+    c.rect(slot_j1, D + SLOT_Z0, SLOT_LEN, SLOT_H, 0.3)
+    c.rect(slot_j2, -SLOT_Z0 - SLOT_H, SLOT_LEN, SLOT_H, 0.3)
 
     # --- board outline on the floor, for placement -----------------------
     bpts = [(MARGIN + (x - board_min[0]), D - MARGIN - (y - board_min[1]))
@@ -249,11 +268,11 @@ def draw_net(c, box, board_poly, board_min, j1, j2, led):
     c.text("LED %g" % LED_HOLE_D, led_x + 2.6, led_y - 1.0, 2.3)
 
     # --- panel labels ----------------------------------------------------
-    c.ctext("FRONT", W / 2.0, -H + 5.8, 2.2)
-    c.ctext("LIP", W / 2.0, -H - LIP_D / 2.0 - 0.9, 2.4)
+    c.ctext("FRONT", 12.0, -H + 5.8, 2.2)
+    c.ctext("LIP", lip_x0 + LIP_W / 2.0, -H - LIP_D / 2.0 - 0.9, 2.4)
     c.ctext("BACK", W / 2.0, D + H / 2.0 - 1.2, 4.0)
     c.ctext("LID", W / 2.0, D + H + D / 2.0 - 1.5, 5.0)
-    c.ctext("TUCK", W / 2.0, y0 + TUCK_D / 2.0 - 0.6, 2.3)
+    c.ctext("TUCK", tx + TUCK_W / 2.0, y0 + TUCK_D / 2.0 - 0.6, 2.3)
     c.ctext("LEFT", -H / 2.0, D - 3.0, 2.4)
     c.ctext("RIGHT", W + H / 2.0, D - 3.0, 2.4)
     c.ctext("BOARD", W / 2.0, D / 2.0 + 1.0, 4.0)
@@ -277,31 +296,33 @@ def draw_notes(sheet, box, led, board_min):
     lines = [
         "1. Print on A4 at 100% / 'Actual size' (check the 100 mm bar).",
         "2. Printed side = inside. Solid = cut, black dashed = valley fold.",
-        "3. Cut the USB-C slot, the 3 mm LED hole and the %.0f x %.0f mm" % (
+        "3. Cut the two USB-C openings, the 3 mm LED hole and the",
+        "   %.0f x %.0f mm tuck slot in the front wall." % (
             SLIT_LEN, SLIT_H),
-        "   tuck slot in the front wall.",
         "4. Fold up the walls and fold the inner lip (LIP) down inside",
         "   the front wall. Glue the tabs (G) to the front and back walls.",
         "5. Fold the lid over and push the %.0f mm tongue (%.0f mm deep)" % (
             TUCK_W, TUCK_D),
         "   through the slot. The lip behind the slot catches it.",
         "6. To open, lift the front edge of the lid; the tongue slides out.",
-        "7. Put the board on the floor against the LEFT wall. J1/J2 go",
-        "   through the slot, LED under the 3 mm hole.",
+        "7. Put the board on the floor with J1 (serial) at the BACK wall",
+        "   and J2 (HID) at the FRONT wall. The mouths pass through the two",
+        "   openings, and the LED sits under the 3 mm hole.",
         "8. No screws. Use tape or a foam pad if the board rattles.",
-        "9. Chamfer the USB-C slot outside if a plug overmould catches.",
+        "9. Chamfer the USB-C openings outside if a plug overmould catches.",
     ]
     for i, line in enumerate(lines):
         sheet.text(line, x, y - 7.0 - i * 3.8, 2.9)
 
-    y2 = 93.0
+    y2 = 100.0
     sheet.text("DIMENSIONS (mm)", x, y2, 3.4)
     for i, line in enumerate([
         "inner        %5.1f x %4.1f x %3.1f" % (W, D, H),
         "board        %5.1f x %4.1f x 1.6" % (W - 2 * MARGIN, D - 2 * MARGIN),
         "wall         0.3 cardstock (recommended)",
-        "USB-C slot   %.1f x %.1f, %.1f above floor" % (
+        "USB-C open   %.1f x %.1f, %.1f above floor," % (
             SLOT_LEN, SLOT_H, SLOT_Z0),
+        "             one in the front and one in the back wall",
         "LED hole     3.0 dia, %.1f / %.1f from hinge" % (
             MARGIN + (led[0] - board_min[0]),
             MARGIN + (led[1] - board_min[1]) + PAPER_T / 2.0),
@@ -311,7 +332,7 @@ def draw_notes(sheet, box, led, board_min):
             SLIT_LEN, SLIT_H, SLIT_D),
         "inner lip    %.0f x %.1f, behind the slot" % (LIP_W, LIP_D),
     ]):
-        sheet.text(line, x, y2 - 5.5 - i * 3.8, 2.9)
+        sheet.text(line, x, y2 - 5.5 - i * 3.4, 2.9)
 
     y3 = 50.0
     sheet.text("LINE TYPES", x, y3, 3.4)
